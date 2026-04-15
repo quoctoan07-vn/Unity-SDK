@@ -1,164 +1,96 @@
-IL2CPP Offset Finder for Unity Android Games
-This library provides runtime symbol resolution for IL2CPP-based Unity games on Android. It locates libil2cpp.so and global-metadata.dat, deobfuscates the metadata (if needed), and enables you to retrieve method addresses and field offsets by name – without needing external tools like Il2CppDumper.
+# IL2CPP Offset Finder for Unity Android Games
 
-Features
-Automatically finds libil2cpp.so and global-metadata.dat paths (supports common storage locations).
+Thư viện này giúp tìm địa chỉ method và offset field trong game Unity sử dụng IL2CPP trên Android mà không cần dùng Il2CppDumper.
 
-Handles obfuscated metadata headers (deobfuscation routine included).
+## Tính năng
 
-Parses ELF sections of the loaded libil2cpp.so to map between file offsets and runtime virtual addresses.
+- Tự động tìm đường dẫn `libil2cpp.so` và `global-metadata.dat`
+- Giải mã metadata bị obfuscate (nếu có)
+- Parse ELF sections của `libil2cpp.so` đang được load
+- Tìm cấu trúc `Il2CppCodeRegistration` và `Il2CppMetadataRegistration`
+- Lấy con trỏ method từ tên (image, class, method, số tham số)
+- Lấy offset field (tự động xử lý value type)
 
-Finds Il2CppCodeRegistration and Il2CppMetadataRegistration structures in memory.
+## Yêu cầu
 
-Resolves method pointers from token/name.
+- Android NDK, C++11
+- Quyền đọc file trong `/proc/self/maps` và data directory của app
 
-Resolves field offsets (handles value type adjustments).
+## Cách dùng
 
-Thread‑safe caching of parsed metadata and ELF sections.
+### 1. Thêm file `.h` vào project
 
-Requirements
-Android environment with a Unity IL2CPP game.
+Copy toàn bộ nội dung file `unity_offset_finder.h` (đã cung cấp) vào project của bạn.
 
-JNI access (the code is designed to be called from native code, e.g., via JNI_OnLoad).
+### 2. Khởi tạo cache
 
-Permissions to read /proc/self/maps, /proc/self/cmdline, and the actual metadata file (usually inside the app’s private data directory).
+Gọi `Unity::EnsureCache()` một lần duy nhất, thường ở `JNI_OnLoad`:
 
-Built with a C++11 (or later) compiler that supports the Android NDK.
+```cpp
+#include "unity_offset_finder.h"
 
-Public API
-All functions are inside the Unity namespace.
-
-Initialization
-cpp
-bool Unity::EnsureCache();
-Initialises the internal cache (loads ELF sections, parses metadata, locates registration structures). Returns true on success. Call this once early in your native code.
-
-Method Resolution
-cpp
-uint64_t Unity::FindMethodOffset(const char* image_name,
-                                 const char* type_namespace,
-                                 const char* type_name,
-                                 const char* method_name,
-                                 int argsCount);
-Returns the RVA (relative virtual address) of the method inside libil2cpp.so.
-If the method is not found, returns 0.
-
-cpp
-inline void* Unity::GetMethodAddress(uintptr_t il2cpp_base,
-                                     const char* image_name,
-                                     const char* type_namespace,
-                                     const char* type_name,
-                                     const char* method_name,
-                                     int argsCount);
-Convenience inline that adds il2cpp_base (the runtime load address of libil2cpp.so) to the RVA. Returns a pointer you can call directly.
-
-Field Resolution
-cpp
-int Unity::FindFieldOffset(const char* image_name,
-                           const char* type_namespace,
-                           const char* type_name,
-                           const char* field_name);
-Returns the byte offset of the field inside its containing object (or value type). For value types, the offset is automatically adjusted (-16 to account for the Il2CppObject header). Returns 0 if the field is not found.
-
-cpp
-inline uintptr_t Unity::GetFieldOffset(const char* image_name,
-                                       const char* type_namespace,
-                                       const char* type_name,
-                                       const char* field_name);
-Inline wrapper that returns the offset as uintptr_t.
-
-Usage Example
-Assume your game uses the Assembly-CSharp.dll image, class Player, method Jump (with 0 arguments), and a field health.
-
-cpp
-#include "unity_offset_finder.h"  // the provided header
-
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
+JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     if (!Unity::EnsureCache()) {
-        __android_log_print(ANDROID_LOG_ERROR, "MyMod", "IL2CPP cache init failed");
+        __android_log_print(ANDROID_LOG_ERROR, "Mod", "Init failed");
         return JNI_ERR;
     }
-
-    // Find libil2cpp.so base address (usually from dlopen or /proc/self/maps)
-    void* libil2cpp = dlopen("libil2cpp.so", RTLD_LAZY);
-    uintptr_t il2cpp_base = (uintptr_t)libil2cpp;  // Or parse from maps
-
-    // Get method address
-    void* jump_method = Unity::GetMethodAddress(il2cpp_base,
-                                                "Assembly-CSharp",
-                                                "",        // no namespace
-                                                "Player",
-                                                "Jump",
-                                                0);
-    if (jump_method) {
-        // Call it: reinterpret_cast<void(*)(void*)>(jump_method)(playerObject);
-    }
-
-    // Get field offset
-    uintptr_t health_offset = Unity::GetFieldOffset("Assembly-CSharp",
-                                                    "",
-                                                    "Player",
-                                                    "health");
-    if (health_offset) {
-        int* health_ptr = reinterpret_cast<int*>(reinterpret_cast<char*>(playerObject) + health_offset);
-    }
-
+    // ... tiếp tục
     return JNI_VERSION_1_6;
 }
-How It Works
-Locate files
 
-find_libil2cpp_path() – searches /proc/self/maps and dl_iterate_phdr.
+// Lấy base address của libil2cpp.so (có thể dùng dlopen)
+void* libil2cpp = dlopen("libil2cpp.so", RTLD_LAZY);
+uintptr_t il2cpp_base = (uintptr_t)libil2cpp;
 
-find_metadata_path() – tries common locations (user data, relative to libil2cpp, package name from cmdline).
+// Lấy địa chỉ hàm Jump trong class Player (Assembly-CSharp, không namespace)
+void* jump_func = Unity::GetMethodAddress(il2cpp_base,
+                                          "Assembly-CSharp",
+                                          "",           // namespace (rỗng nếu không có)
+                                          "Player",
+                                          "Jump",
+                                          0);           // số tham số
+if (jump_func) {
+    // Ép kiểu và gọi
+    ((void(*)(void*))jump_func)(playerObject);
+}
 
-Load ELF sections from memory
-load_libil2cpp_from_memory() uses dl_iterate_phdr to obtain the load address and program headers of libil2cpp.so. It builds two lists of sections: executable (code) and non‑executable (data).
+uintptr_t health_offset = Unity::GetFieldOffset("Assembly-CSharp",
+                                                "",
+                                                "Player",
+                                                "health");
+if (health_offset) {
+    int* health_ptr = (int*)((char*)playerObject + health_offset);
+    *health_ptr = 100;
+}
 
-Deobfuscate metadata
-deobf_meta() applies a known XOR‑subtraction pattern to restore a valid global‑metadata header.
+namespace Unity {
+    // Khởi tạo cache (gọi 1 lần)
+    bool EnsureCache();
 
-Find registration structures
+    // Trả về RVA của method (0 nếu không tìm thấy)
+    uint64_t FindMethodOffset(const char* image_name,
+                              const char* type_namespace,
+                              const char* type_name,
+                              const char* method_name,
+                              int argsCount);
 
-find_code_reg() locates Il2CppCodeRegistration by scanning for the string "mscorlib.dll" and following cross‑references.
+    // Trả về con trỏ hàm (thêm base address)
+    inline void* GetMethodAddress(uintptr_t il2cpp_base,
+                                  const char* image_name,
+                                  const char* type_namespace,
+                                  const char* type_name,
+                                  const char* method_name,
+                                  int argsCount);
 
-find_meta_reg() locates Il2CppMetadataRegistration using the typeDefinitionsCount signature.
+    // Trả về offset field (byte)
+    int FindFieldOffset(const char* image_name,
+                        const char* type_namespace,
+                        const char* type_name,
+                        const char* field_name);
 
-Resolve methods
-find_method_tok() → get_method_ptr() – uses the token from the metadata and the codeGenModules table to retrieve the actual code pointer.
-
-Resolve field offsets
-find_field_idx() → get_field_off() – uses the fieldOffsets table inside Il2CppMetadataRegistration.
-
-Important Notes
-The deobfuscation logic and some constants are tailored to a specific game (e.g., com.garena.game.kgvn). You may need to adjust them for other games.
-
-The code assumes a 64‑bit (Elf64) architecture. For 32‑bit ARM, the structures would need changes.
-
-EnsureCache() must be called after libil2cpp.so has been loaded (usually during JNI_OnLoad).
-
-The library does not require root, but it does need read access to the metadata file (normally accessible by the app itself).
-
-Building
-Use the Android NDK. A sample Android.mk:
-
-makefile
-LOCAL_PATH := $(call my-dir)
-include $(CLEAR_VARS)
-LOCAL_MODULE     := unity_offset_finder
-LOCAL_SRC_FILES  := unity_offset_finder.cpp
-LOCAL_C_INCLUDES := $(LOCAL_PATH)
-LOCAL_CFLAGS     := -std=c++11 -Wall
-LOCAL_LDLIBS     := -llog -ldl
-include $(BUILD_SHARED_LIBRARY)
-Limitations / TODO
-Only 64‑bit ELF is supported.
-
-Deobfuscation pattern may need to be updated for newer Unity versions.
-
-The field offset adjustment -16 assumes the standard Il2CppObject layout; verify for your game.
-
-No support for generic methods or fields directly; you must use the concrete type names.
-
-License
-This code is provided as-is for educational purposes. Use at your own risk.
+    // Inline wrapper
+    inline uintptr_t GetFieldOffset(const char* image_name,
+                                    const char* type_namespace,
+                                    const char* type_name,
+                                    const char* field_name);
+}
