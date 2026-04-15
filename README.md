@@ -5,7 +5,7 @@ Thư viện này giúp tìm địa chỉ method và offset field trong game Unit
 ## Tính năng
 
 - Tự động tìm đường dẫn `libil2cpp.so` và `global-metadata.dat`
-- Giải mã metadata bị obfuscate (nếu có)
+- Giải mã metadata bị obfuscate
 - Parse ELF sections của `libil2cpp.so` đang được load
 - Tìm cấu trúc `Il2CppCodeRegistration` và `Il2CppMetadataRegistration`
 - Lấy con trỏ method từ tên (image, class, method, số tham số)
