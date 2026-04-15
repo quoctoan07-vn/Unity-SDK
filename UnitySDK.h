@@ -17,10 +17,6 @@
 
 #define LOG_TAG "FixAUto"
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <time.h>
-
 void getPackageName(char* buffer, size_t size) {
     FILE* fp = fopen("/proc/self/cmdline", "r");
     if (fp) {
@@ -31,42 +27,6 @@ void getPackageName(char* buffer, size_t size) {
     } else {
         strncpy(buffer, "unknown", size);
     }
-}
-
-void WriteLog(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    __android_log_vprint(ANDROID_LOG_INFO, "quoctoandev", fmt, args);
-    va_end(args);
-
-    char pkgName[128];
-    getPackageName(pkgName, sizeof(pkgName));
-
-    char logPath[256];
-    snprintf(logPath, sizeof(logPath), "/data/data/%s/quoctoandev.txt", pkgName);
-
-    FILE* file = fopen(logPath, "a+");
-    if (!file) {
-        snprintf(logPath, sizeof(logPath), "/sdcard/Download/log_%s.txt", pkgName);
-        file = fopen(logPath, "a+");
-    }
-
-    if (!file) {
-        return;
-    }
-
-    time_t now = time(0);
-    struct tm* ltm = localtime(&now);
-    fprintf(file, "[%02d:%02d:%02d] ", ltm->tm_hour, ltm->tm_min, ltm->tm_sec);
-
-    va_list fargs;
-    va_start(fargs, fmt);
-    vfprintf(file, fmt, fargs);
-    va_end(fargs);
-
-    fprintf(file, "\n");
-    fflush(file);
-    fclose(file);
 }
 
 namespace Unity {
@@ -1249,7 +1209,6 @@ char *find_metadata_path() {
                     strncpy(cached_path, relative_path, sizeof(cached_path) - 1);
                     cached_path[sizeof(cached_path) - 1] = '\0';
                     free(lib_path);
-                    WriteLog("Found metadata via relative search: %s", cached_path);
                     return strdup(cached_path);
                 }
             }
@@ -1371,30 +1330,13 @@ bool init_cache(unity_cache_t *cache) {
     char *libil2cpp_path = find_libil2cpp_path();
     char *meta_path = find_metadata_path();
     
-    if (!libil2cpp_path) {
-        WriteLog("FAILED: Could not find path for libil2cpp.so");
-    } else {
-        WriteLog("Found libil2cpp at: %s", libil2cpp_path);
-    }
-    
-    if (!meta_path) {
-        WriteLog("FAILED: Could not find path for global-metadata.dat");
-    } else {
-        WriteLog("Found metadata at: %s", meta_path);
-    }
-    
     if (!libil2cpp_path || !meta_path) {
-        WriteLog("Cannot find libil2cpp.so or global-metadata.dat");
         if (libil2cpp_path) free(libil2cpp_path);
         if (meta_path) free(meta_path);
         return false;
     }
-    
-    WriteLog("Found libil2cpp.so: %s", libil2cpp_path);
-    WriteLog("Found metadata: %s", meta_path);
-    
+
     if (!read_file(meta_path, &cache->meta)) {
-        WriteLog("Cannot read metadata file");
         free(libil2cpp_path);
         free(meta_path);
         return false;
@@ -1403,20 +1345,17 @@ bool init_cache(unity_cache_t *cache) {
     free(meta_path);
 
     if (!load_libil2cpp_from_memory(&cache->unity, &cache->exec_secs, &cache->data_secs, &cache->image_base)) {
-        WriteLog("Cannot load libil2cpp from memory");
         free_file(&cache->meta);
         return false;
     }
 
     deobf_meta(&cache->meta);
     if (cache->meta.size < 0x100) {
-        WriteLog("Metadata size too small after deobfuscation");
         free_file(&cache->meta);
         return false;
     }
     cache->hdr = (const uint32_t *)cache->meta.data;
     if (cache->hdr[0] != 0xFAB11BAF || cache->hdr[1] < 29) {
-        WriteLog("Invalid metadata header: 0x%08X, version: %u", cache->hdr[0], cache->hdr[1]);
         free_file(&cache->meta);
         return false;
     }
@@ -1432,18 +1371,15 @@ bool init_cache(unity_cache_t *cache) {
 
     int imageCount = cache->hdr[43] / (int)sizeof(Il2CppImageDefinition);
     if (!find_code_reg(&cache->unity, &cache->exec_secs, &cache->data_secs, imageCount, &cache->meta, cache->hdr, &cache->code_reg_va)) {
-        WriteLog("Cannot find code_reg");
         free_file(&cache->meta);
         return false;
     }
     int typeDefinitionsCount = cache->hdr[41] / (int)sizeof(Il2CppTypeDefinition);
     if (!find_meta_reg(&cache->unity, &cache->exec_secs, &cache->data_secs, typeDefinitionsCount, &cache->meta_reg_va)) {
-        WriteLog("Cannot find meta_reg");
         free_file(&cache->meta);
         return false;
     }
 
-    WriteLog("Init cache success");
     return true;
 }
 
@@ -1551,6 +1487,5 @@ inline uintptr_t GetFieldOffset(const char *image_name,
                                  const char *field_name) {
     int offset = FindFieldOffset(image_name, type_namespace, type_name, field_name);
     return (uintptr_t)offset;
-}
-
+  }
 }
