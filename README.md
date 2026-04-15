@@ -27,7 +27,7 @@ Copy toàn bộ nội dung file `UnitySDK.h` (đã cung cấp) vào project củ
 Gọi `Unity::EnsureCache()` một lần duy nhất, thường ở `JNI_OnLoad`:
 
 ```cpp
-#include "unity_offset_finder.h"
+#include "UnitySDK.h"
 
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     if (!Unity::EnsureCache()) {
