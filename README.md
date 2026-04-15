@@ -20,7 +20,7 @@ Thư viện này giúp tìm địa chỉ method và offset field trong game Unit
 
 ### 1. Thêm file `.h` vào project
 
-Copy toàn bộ nội dung file `unity_offset_finder.h` (đã cung cấp) vào project của bạn.
+Copy toàn bộ nội dung file `UnitySDK.h` (đã cung cấp) vào project của bạn.
 
 ### 2. Khởi tạo cache
 
