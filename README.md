@@ -1,4 +1,4 @@
-# IL2CPP Offset Finder for Unity Android Games
+# IL2CPP Offset Finder for Unity Android Games ( Thằng nào mang bán cả nhà chết )
 
 Thư viện này giúp tìm địa chỉ method và offset field trong game Unity sử dụng IL2CPP trên Android mà không cần dùng Il2CppDumper.
 
@@ -20,23 +20,12 @@ Thư viện này giúp tìm địa chỉ method và offset field trong game Unit
 
 ### 1. Thêm file `.h` vào project
 
-Copy toàn bộ nội dung file `UnitySDK.h` (đã cung cấp) vào project của bạn.
+Copy toàn bộ nội dung file `UnitySDK.h` vào project của bạn.
 
 ### 2. Khởi tạo cache
 
-Gọi `Unity::EnsureCache()` một lần duy nhất, thường ở `JNI_OnLoad`:
-
 ```cpp
 #include "UnitySDK.h"
-
-JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
-    if (!Unity::EnsureCache()) {
-        __android_log_print(ANDROID_LOG_ERROR, "Mod", "Init failed");
-        return JNI_ERR;
-    }
-    // ... tiếp tục
-    return JNI_VERSION_1_6;
-}
 
 // Lấy base address của libil2cpp.so (có thể dùng dlopen)
 void* libil2cpp = dlopen("libil2cpp.so", RTLD_LAZY);
@@ -64,8 +53,6 @@ if (health_offset) {
 }
 
 namespace Unity {
-    // Khởi tạo cache (gọi 1 lần)
-    bool EnsureCache();
 
     // Trả về RVA của method (0 nếu không tìm thấy)
     uint64_t FindMethodOffset(const char* image_name,
