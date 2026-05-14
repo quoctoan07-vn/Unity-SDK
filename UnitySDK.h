@@ -15,7 +15,7 @@
 #include <pthread.h>
 #include <android/log.h>
 
-#define LOG_TAG "FixAUto"
+#define LOG_TAG "Thằng nào mang bán cả nhà chết!"
 
 void getPackageName(char* buffer, size_t size) {
     FILE* fp = fopen("/proc/self/cmdline", "r");
